@@ -1,0 +1,399 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iStudio: Присоединяйся!</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #FFFFFF;
+            color: #1F2937;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        header {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(45deg, #FFF1F8, #FFE4E1);
+            color: #1F2937;
+            border-radius: 15px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255,105,180,0.1) 0%, transparent 70%);
+            opacity: 0.5;
+        }
+        h1 {
+            font-size: 2.5em;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+            margin: 0;
+            position: relative;
+            z-index: 1;
+            background: linear-gradient(to right, #FF69B4, #EC4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        h2 {
+            color: #FF69B4;
+            font-weight: 600;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        section {
+            margin-bottom: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            border: 1px solid #FFE4E1;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease;
+        }
+        section:hover {
+            transform: translateY(-3px);
+        }
+        .task, .prize {
+            margin: 15px 0;
+            padding: 15px;
+            background: #F9FAFB;
+            border-radius: 10px;
+            color: #1F2937;
+            font-weight: 500;
+            transition: background 0.3s ease;
+        }
+        .task:hover, .prize:hover {
+            background: #FFF1F8;
+        }
+        button {
+            background: linear-gradient(45deg, #FF69B4, #EC4899);
+            color: #FFFFFF;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+        }
+        button:hover {
+            background: linear-gradient(45deg, #EC4899, #DB2777);
+            transform: scale(1.03);
+            box-shadow: 0 5px 12px rgba(0, 0, 0, 0.15);
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .level {
+            display: none;
+        }
+        .show {
+            display: block;
+        }
+        #refLink {
+            color: #EC4899;
+            font-weight: 600;
+            text-decoration: underline;
+            transition: color 0.3s ease;
+        }
+        #refLink:hover {
+            color: #DB2777;
+        }
+        p, span {
+            color: #374151;
+            font-weight: 500;
+        }
+        #points {
+            font-size: 1.5em;
+            color: #FF69B4;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        section, header {
+            animation: fadeIn 0.5s ease-out;
+        }
+        @media (max-width: 600px) {
+            h1 { font-size: 1.8em; }
+            button { padding: 10px 20px; font-size: 0.9em; }
+            section { padding: 15px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>iStudio: Присоединяйся!</h1>
+        <p>Ваши баллы: <span id="points">0</span></p>
+    </header>
+
+    <section id="referral">
+        <h2>Реферальная система</h2>
+        <p>Приглашайте друзей и зарабатывайте 200 баллов за каждого (максимум 5 друзей).</p>
+        <p>Ваша реферальная ссылка: <span id="refLink"></span></p>
+        <button onclick="shareRef()">Поделиться ссылкой</button>
+        <p>Приглашено друзей: <span id="refCount">0</span></p>
+    </section>
+
+    <section id="shop">
+        <h2>🎁 Призовая система</h2>
+        <div class="prize">
+            <p>300 баллов — Чехол для iPhone</p>
+            <button onclick="buyPrize('Чехол для iPhone', 300)">Купить</button>
+        </div>
+        <div class="prize">
+            <p>500 баллов — Наушники EarPods</p>
+            <button onclick="buyPrize('Наушники EarPods', 500)">Купить</button>
+        </div>
+        <div class="prize">
+            <p>1000 баллов — Беспроводная зарядка</p>
+            <button onclick="buyPrize('Беспроводная зарядка', 1000)">Купить</button>
+        </div>
+        <div class="prize">
+            <p>2000 баллов — Сертификат на 2000 рублей</p>
+            <button onclick="buyPrize('Сертификат на 2000 рублей', 2000)">Купить</button>
+        </div>
+        <div class="prize">
+            <p>5000 баллов — AirPods Pro</p>
+            <button onclick="buyPrize('AirPods Pro', 5000)">Купить</button>
+        </div>
+    </section>
+
+    <section id="levels">
+        <h2>Уровни</h2>
+        <button onclick="showLevel('level1')">🟢 Level 1 — Новичок</button>
+        <button onclick="showLevel('level2')">🟡 Level 2 — Энтузиаст</button>
+        <button onclick="showLevel('level3')">🔵 Level 3 — Фанат iStudio</button>
+        <button onclick="showLevel('level4')">🔴 Level 4 — Легенда</button>
+        <button onclick="showLevel('s-rank')">🔴 S-Rank — Икона</button>
+        <button onclick="showMain()">Назад</button>
+
+        <section id="level1" class="level">
+            <h2>🟢 Level 1 — Новичок</h2>
+            <div class="task">
+                <p>Подпишись на Telegram и Instagram iStudio — 50 баллов</p>
+                <input type="file" id="file1-1">
+                <button onclick="submitTask('Подпишись на Telegram и Instagram iStudio', 50, '', 'file1-1')">Приложить файл</button>
+            </div>
+            <div class="task">
+                <p>Оформи покупку на любую сумму — 100 баллов</p>
+                <input type="file" id="file1-2">
+                <button onclick="submitTask('Оформи покупку на любую сумму', 100, '', 'file1-2')">Приложить файл</button>
+            </div>
+            <div class="task">
+                <p>Сделай фото с продуктом iStudio и выложи в Instagram — 80 баллов</p>
+                <input type="file" id="file1-3">
+                <button onclick="submitTask('Сделай фото с продуктом iStudio и выложи в Instagram', 80, '', 'file1-3')">Приложить файл</button>
+            </div>
+            <button onclick="showMain()">Назад</button>
+        </section>
+
+        <section id="level2" class="level">
+            <h2>🟡 Level 2 — Энтузиаст</h2>
+            <div class="task">
+                <p>Пригласи друга по реферальной ссылке (5 максимум) — 200 баллов</p>
+                <input type="file" id="file2-1">
+                <button onclick="submitTask('Пригласи друга по реферальной ссылке', 200, '', 'file2-1')">Приложить файл</button>
+            </div>
+            <div class="task">
+                <p>Сними короткое видео с продуктом iStudio (до 30 сек) — 150 баллов</p>
+                <input type="file" id="file2-2">
+                <button onclick="submitTask('Сними короткое видео с продуктом iStudio', 150, '', 'file2-2')">Приложить файл</button>
+            </div>
+            <div class="task">
+                <p>Оставь отзыв на сайте iStudio — 120 баллов</p>
+                <input type="file" id="file2-3">
+                <button onclick="submitTask('Оставь отзыв на сайте iStudio', 120, '', 'file2-3')">Приложить файл</button>
+            </div>
+            <button onclick="showMain()">Назад</button>
+        </section>
+
+        <section id="level3" class="level">
+            <h2>🔵 Level 3 — Фанат iStudio</h2>
+            <div class="task">
+                <p>Создай Reels с обзором iStudio (1000+ просмотров) — 300 баллов</p>
+                <input type="file" id="file3-1">
+                <button onclick="submitTask('Создай Reels с обзором iStudio', 300, '', 'file3-1')">Приложить файл</button>
+            </div>
+            <div class="task">
+                <p>Организуй встречу с друзьями в iStudio (фотоотчёт) — 250 баллов</p>
+                <input type="file" id="file3-2">
+                <button onclick="submitTask('Организуй встречу с друзьями в iStudio', 250, '', 'file3-2')">Приложить файл</button>
+            </div>
+            <div class="task">
+                <p>Пригласи 3 друга, которые купили в iStudio — 400 баллов</p>
+                <input type="file" id="file3-3">
+                <button onclick="submitTask('Пригласи 3 друга, которые купили в iStudio', 400, '', 'file3-3')">Приложить файл</button>
+            </div>
+            <button onclick="showMain()">Назад</button>
+        </section>
+
+        <section id="level4" class="level">
+            <h2>🔴 Level 4 — Легенда</h2>
+            <div class="task">
+                <p>Сними вирусное видео с продуктом iStudio (10k+ просмотров) — 1000 баллов</p>
+                <input type="file" id="file4-1">
+                <button onclick="submitTask('Сними вирусное видео с продуктом iStudio', 1000, '', 'file4-1')">Приложить файл</button>
+            </div>
+            <div class="task">
+                <p>Организуй флешмоб в поддержку iStudio (видео) — 800 баллов</p>
+                <input type="file" id="file4-2">
+                <button onclick="submitTask('Организуй флешмоб в поддержку iStudio', 800, '', 'file4-2')">Приложить файл</button>
+            </div>
+            <div class="task">
+                <p>Проведи стрим с продуктом iStudio (1 час) — 600 баллов</p>
+                <input type="file" id="file4-3">
+                <button onclick="submitTask('Проведи стрим с продуктом iStudio', 600, '', 'file4-3')">Приложить файл</button>
+            </div>
+            <button onclick="showMain()">Назад</button>
+        </section>
+
+        <section id="s-rank" class="level">
+            <h2>🔴 S-Rank — Икона</h2>
+            <div class="task">
+                <p>Достичь 1M подписчиков и упомянуть iStudio — пожизненный сертификат</p>
+                <input type="file" id="file5-1">
+                <button onclick="submitTask('Достичь 1M подписчиков и упомянуть iStudio', 0, 'пожизненный сертификат', 'file5-1')">Приложить файл</button>
+            </div>
+            <div class="task">
+                <p>Организовать коллаб с блогером (100k+ подписчиков) — 5 лет бесплатных покупок</p>
+                <input type="file" id="file5-2">
+                <button onclick="submitTask('Организовать коллаб с блогером', 0, '5 лет бесплатных покупок', 'file5-2')">Приложить файл</button>
+            </div>
+            <button onclick="showMain()">Назад</button>
+        </section>
+    </section>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        const user = tg.initDataUnsafe.user;
+        const userId = user ? user.id : 'test_user';
+        let points = 0;
+        let refCount = 0;
+
+        // Получение баллов с сервера при загрузке
+        async function loadPoints() {
+            const response = await fetch(`/get_points?userId=${userId}`);
+            const data = await response.json();
+            points = data.points || 0;
+            document.getElementById('points').innerText = points;
+        }
+
+        loadPoints();  // Загружаем баллы при старте
+
+        // Обновление UI рефералов
+        document.getElementById('refLink').innerText = `https://t.me/istudio_bot?start=ref_${userId}`;
+        document.getElementById('refCount').innerText = refCount;
+
+        // Поделиться реф. ссылкой
+        function shareRef() {
+            tg.shareUrl(document.getElementById('refLink').innerText, 'Приглашаю в iStudio!');
+        }
+
+        // Отправка задания
+        function submitTask(taskName, pointsValue, prize, fileId) {
+            const fileInput = document.getElementById(fileId);
+            fileInput.onchange = () => {
+                if (fileInput.files[0]) {
+                    const formData = new FormData();
+                    formData.append('userId', userId);
+                    formData.append('taskName', taskName);
+                    formData.append('pointsValue', pointsValue);
+                    formData.append('prize', prize);
+                    formData.append('file', fileInput.files[0]);
+
+                    fetch('/submit', { method: 'POST', body: formData })
+                        .then(res => res.json())
+                        .then(data => {
+                            alert(data.message);
+                            if (data.status === 'pending') loadPoints();  // Обновляем баллы с сервера
+                        })
+                        .catch(err => alert('Ошибка: ' + err));
+                }
+            };
+            fileInput.click();
+        }
+
+        // Покупка приза с проверкой и вычитанием баллов
+        function buyPrize(prizeName, cost) {
+            if (points < cost) return alert('Недостаточно баллов!');
+            fetch('/purchase', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, prizeName, cost })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.status === 'pending') loadPoints();  // Обновляем баллы с сервера после покупки
+                })
+                .catch(err => alert('Ошибка: ' + err));
+        }
+
+        // Навигация по уровням
+        function showLevel(levelId) {
+            document.querySelectorAll('.level').forEach(el => el.classList.remove('show'));
+            document.getElementById(levelId).classList.add('show');
+        }
+        function showMain() {
+            document.querySelectorAll('.level').forEach(el => el.classList.remove('show'));
+        }
+    </script>
+</body>
+</html>
